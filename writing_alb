@@ -1,0 +1,147 @@
+TL_LymphAlbRate_body = (
+                        "((v['Klp'] * v['Alb_p'])"
+                        "+ ( (1 - v['Klp']) * v['Alb_tl'] ))"
+                        " * v['TL_LW_R']"
+                       )
+
+
+TM_LymphAlbRate_body = (
+                        "((v['Klp'] * v['Alb_p'])"
+                        "+ ( (1 - v['Klp']) * v['Alb_tm'] ))"
+                        " * v['TM_LW_R']"
+                       )
+
+TU_LymphAlbRate_body = (
+                        "((v['Klp'] * v['Alb_p'])"
+                        "+ ( (1 - v['Klp']) * v['Alb_tu'] ))"
+                        " * v['TU_LW_R']"
+                       )
+
+
+Total_LymphAlbRate_body = (
+                           "TL_LymphAlbRate.tl_lymphalbrate(t, x, v)"
+                           " + TM_LymphAlbRate.tm_lymphalbrate(t, x, v)"
+                           " + TU_LymphAlbRate.tu_lymphalbrate(t, x, v)"
+                          )
+
+
+
+TL_CapAlbRate_body = (
+                      "v['LAPerm'] * v['sigA'] "
+                      " * (v['Alb_p'] - v['Alb_tl'])"
+                       )
+
+TM_CapAlbRate_body = (
+                      "v['MAPerm'] * v['sigA'] " 
+                      "* (v['Alb_p'] - v['Alb_tm'])"
+                     )
+
+TU_CapAlbRate_body = (
+                      "v['UAPerm'] * v['sigA']"
+                      "* (v['Alb_p'] - v['Alb_tu'])"
+                       )
+
+Total_CapAlbRate_body = (
+                         "TL_CapAlbRate.tl_capalbrate(t, x, v)"
+                         " + TM_CapAlbRate.tm_capalbrate(t, x, v)"
+                         " + TU_CapAlbRate.tu_capalbrate(t, x, v)"
+                        )
+
+
+CD_AlbOutflow_body = (
+                      "v['Alb_p'] * (v['ModPerm'] +v['AlbPerm'])"
+                      "* v['GFR'] / 1000"
+                     )
+
+
+# Albumin partial colliod osmotic
+Albpcop_body = (
+                 "2.1 * (v['Alb_p'] * 1000 / v['MWAlb']) * 62.36367"
+                 "* v['Temp_K'] * v['sigA']"
+                 )
+
+
+
+# colloid osmotic pressure
+COP_head = "def cop(self, x, v):\n\trhs = "
+COP_body = (
+            "Albpcop.albpcop(x, v) + v['IgpCOP'] + v['HetapCOP']"
+            " + v['AGPpCOP']"
+            )
+
+
+# COPeffect 
+COPE_head = "def cope(self, x, v):\n\trhs = "
+COPE_body = (
+             "0.015 * (copeCurve(COP.cop(x,v)) - v['COPEffect'])"
+            )
+
+COPE = DeEquation(COPE_body)
+COPE.make_fun('COPE', 'cope', COPE_head, 
+        CRF_ret, testVars)
+
+# set up the cop effect curve
+copefCurve = cs([20, 28, 40],[1.15, 1, 0],[0, -0.07, 0])
+
+def copeCurve(cop):
+    if cop <= 20.0:
+        return 1.15
+    elif cop >= 40.0:
+        return 0
+    else:
+        return copefCurve.__call__(cop)
+
+
+
+# Torso Lower Interstitial Alb
+Albtl_head = "def alb_tl(self, t, x, v):\n\trhs = "
+Albtl_body = (
+              "TL_CapAlbRate.tl_capalbrate(t, x, v)"
+              "- TL_LymphAlbRate.tl_lymphalbrate(t, x, v)"
+             )
+
+Albtl = DeEquation(Albtl_body)
+Albtl.make_fun('Albtl', 'alb_tl', 
+        Albtl_head, CRF_ret, testVars)
+
+
+# Torso Middle Interstitial Protein Alb
+Albtm_head = "def alb_tm(self, t, x, v):\n\trhs = "
+Albtm_body = (
+              "TM_CapAlbRate.tm_capalbrate(t, x, v)"
+              "- TM_LymphAlbRate.tm_lymphalbrate(t, x, v)"
+             )
+
+Albtm = DeEquation(Albtm_body)
+Albtm.make_fun('Albtm', 'alb_tm', 
+        Albtm_head, CRF_ret, testVars)
+
+
+# Torso_Upper_InterstitialProtein.[Alb]
+Albtu_head = "def alb_tu(self, t, x, v):\n\trhs = "
+Albtu_body = (
+              "TU_CapAlbRate.tu_capalbrate(t, x, v)"
+              "- TU_LymphAlbRate.tu_lymphalbrate(t, x, v)"
+             )
+
+Albtu = DeEquation(Albtu_body)
+Albtu.make_fun('Albtu', 'alb_tu', 
+        Albtu_head, CRF_ret, testVars)
+
+
+Albp_body = (
+             "v['k4'] * v['COPEffect']" 
+             " + Total_LymphAlbRate.total_lymphalbrate(t, x, v)"
+             "- (v['Deg_a'] "
+             "+ Total_CapAlbRate.total_capalbrate(t, x, v)" 
+             " + CD_AlbOutflow.cd_alboutflow(t, x, v))"
+            )
+
+Albp = DeEquation(Albp_body)
+Albp.make_fun('Albp', 'alb_p', 
+        Albp_head, CRF_ret, testVars)
+
+
+\big ( \phi [Alb_p]  + (1 - \phi) [Alb_i] \big) 
+
+\rm - \kappa \sigma_A ([Alb_p] - [Alb_i])
